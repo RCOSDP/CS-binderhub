@@ -62,7 +62,7 @@ jupyterhub:
     cors: *cors
     binderauth_enabled: false
   rbac:
-    enabled: true
+    create: true
   hub:
     config:
       JupyterHub:
