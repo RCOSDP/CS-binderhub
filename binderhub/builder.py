@@ -303,8 +303,8 @@ class BuildHandler(BaseHandler):
             await self.emit(
                 {
                     "phase": "failed",
-                    "message": f"Sorry, {spec} has been temporarily disabled from launching. Please contact admins for more info!"
-                    + f"\n{spec}が一時的に起動できなくなりました。管理者へお問い合わせください。",
+                    "message": f"Sorry, {spec} is not allowed to launch. Please contact admins for more info!"
+                    + f"\n{spec}は起動できません。管理者へお問い合わせください。",
                 }
             )
             return
