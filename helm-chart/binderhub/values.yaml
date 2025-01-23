@@ -316,11 +316,14 @@ pink:
 
 imageCleaner:
   enabled: true
+  extraEnv: {}
   image:
     name: gcr.io/nii-ap-ops/k8s-binderhub-image-cleaner
     tag: '0.2.0-jhub-1.1.3'
     pullPolicy: ""
     pullSecrets: []
+  # whether to cordon nodes while cleaning
+  cordon: true
   # delete an image at most every 5 seconds
   delay: 5
   # Interpret threshold values as percentage or bytes
