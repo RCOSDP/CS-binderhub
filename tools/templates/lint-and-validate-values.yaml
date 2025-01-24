@@ -76,6 +76,15 @@ jupyterhub:
     continuous:
       enabled: false
 
+  usersExporter:
+    enabled: false
+    secretToken: "dummy-user-exporter-secret-token"
+  schedulableNotebook:
+    enabled: false
+    secretToken: "dummy-schedulable-notebook-secret-token"
+    jenkins:
+      storageClassName: local-path
+
 deployment:
   readinessProbe: &probe
     enabled: true

@@ -1,5 +1,7 @@
-# (DELETE ME)
-# this file should be removed immediately after merging PR #1472
+# This config is used when both BinderHub and the JupyterHub it uses are
+# deployed to a kubernetes cluster.
+cors:
+  allowOrigin: '*'
 
 service:
   type: NodePort
@@ -13,19 +15,6 @@ config:
     hub_url_local: http://proxy-public
     use_registry: false
     log_level: 10
-    cors_allow_origin: "*"
-
-ingress:
-  # Enabled to test the creation/update of the k8s Ingress resource, but not
-  # used actively in our CI system.
-  enabled: true
-
-# Not using dind to test the creation/update of the image-cleaner DaemonSet
-# resource because it also requires us to setup a container registry to test
-# against which we haven't. We currently only test this via
-# lint-and-validate-values.yaml that makes sure our rendered templates are
-# valid against a k8s api-server.
-imageBuilderType: host
 
 # NOTE: This is a mirror of the jupyterhub section in
 #       jupyterhub-chart-config.yaml in testing/local-binder-k8s-hub, keep these
@@ -34,14 +23,21 @@ jupyterhub:
   debug:
     enabled: true
 
+  custom:
+    cors:
+      allowOrigin: "*"
+
   hub:
-    config:
-      BinderSpawner:
-        cors_allow_origin: "*"
+    # cookieSecret must be a hex encoded even length string
+    cookieSecret: "cccccccccc"
     db:
       type: "sqlite-memory"
+    services:
+      binder:
+        apiToken: "dummy-binder-secret-token"
 
   proxy:
+    secretToken: "dummy-proxy-secret-token"
     service:
       type: NodePort
       nodePorts:
@@ -52,3 +48,16 @@ jupyterhub:
       type: none
     memory:
       guarantee: null
+
+  usersExporter:
+    enabled: false
+    secretToken: "dummy-user-exporter-secret-token"
+
+  schedulableNotebook:
+    enabled: false
+    secretToken: "dummy-schedulable-notebook-secret-token"
+    jenkins:
+      storageClassName: local-path
+
+imageCleaner:
+  enabled: false

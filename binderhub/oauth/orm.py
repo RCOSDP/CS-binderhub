@@ -45,7 +45,7 @@ from jupyterhub.utils import hash_token
 from jupyterhub.utils import new_token
 
 from jupyterhub.orm import (
-    utcnow, Hashed, GrantType, DatabaseSchemaMismatch, register_foreign_keys,
+    utcnow, GrantType, DatabaseSchemaMismatch, register_foreign_keys,
     register_ping_connection, mysql_large_prefix_check, add_row_format,
 )
 
@@ -58,7 +58,7 @@ def get_user(user_name):
     return dict(kind='user', name=user_name)
 
 
-class OAuthAccessToken(Hashed, Base):
+class OAuthAccessToken(Base):
     __tablename__ = 'oauth_access_tokens'
     id = Column(Integer, primary_key=True, autoincrement=True)
 
@@ -72,6 +72,7 @@ class OAuthAccessToken(Hashed, Base):
 
     client_id = Column(Unicode(255), ForeignKey('oauth_clients.identifier', ondelete='CASCADE'))
     grant_type = Column(Enum(GrantType), nullable=False)
+    token = Column(Unicode(255))
     expires_at = Column(Integer)
     refresh_token = Column(Unicode(255))
     refresh_expires_at = Column(Integer)
@@ -79,10 +80,6 @@ class OAuthAccessToken(Hashed, Base):
 
     # the browser session id associated with a given token
     session_id = Column(Unicode(255))
-
-    # from Hashed
-    hashed = Column(Unicode(255), unique=True)
-    prefix = Column(Unicode(16), index=True)
 
     created = Column(DateTime, default=datetime.utcnow)
     last_activity = Column(DateTime, nullable=True)
@@ -97,7 +94,7 @@ class OAuthAccessToken(Hashed, Base):
 
     @classmethod
     def find(cls, db, token):
-        orm_token = super().find(db, token)
+        orm_token = db.query(cls).filter(cls.token == token).first()
         if orm_token and not orm_token.client_id:
             app_log.warning(
                 "Deleting stale oauth token for %s with no client",

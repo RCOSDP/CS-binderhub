@@ -578,6 +578,22 @@ properties:
           See [the Kubernetes
           documentation](https://kubernetes.io/docs/concepts/services-networking/ingress/#tls)
           for more details about annotations.
+      preview:
+        type: object
+        additionalProperties: false
+        properties:
+          hosts:
+            type: array
+            description: |
+              List of hosts to route requests to the proxy.
+          tls:
+            type: array
+            description: |
+              TLS configurations for Ingress.
+
+              See [the Kubernetes
+              documentation](https://kubernetes.io/docs/concepts/services-networking/ingress/#tls)
+              for more details about annotations.
 
   initContainers: *initContainers-spec
   lifecycle: *lifecycle-spec
