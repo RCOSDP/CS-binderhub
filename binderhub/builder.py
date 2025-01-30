@@ -358,19 +358,19 @@ class BuildHandler(BaseHandler):
 
         if ref is None:
             error_message = [
-                f"Could not resolve ref for {key}. Double check your URL and that your repo is public."
+                f"Could not resolve ref for {key}. Double check your URL and that your repo is public.",
+                f"{key} への参照を解決できませんでした。URLとリポジトリが公開されているか確認してください。",
             ]
-            error_message.append('リポジトリURLを確認してください。')
 
             if provider.name == "GitHub":
-                error_message.append(
-                    'GitHub recently changed default branches from "master" to "main".'
-                )
-                error_message.append(
-                    'GitHub は2020年に、デフォルトブランチ名を "master" から "main" へ変更しました。'
-                )
-
                 if provider.unresolved_ref in {"master", "main"}:
+                    if provider.unresolved_ref == "master":
+                        error_message.append(
+                            'GitHub has changed default branches from "master" to "main".'
+                        )
+                        error_message.append(
+                            'GitHub は、デフォルトブランチ名を "master" から "main" へ変更しました。'
+                        )
                     error_message.append(
                         "Tip: HEAD will always resolve to a repository's default branch."
                     )
