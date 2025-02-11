@@ -1,17 +1,19 @@
 """
 Interaction with the Docker Registry
 """
+
 import base64
 import json
 import os
+import re
 from urllib.parse import urlparse
 
 from tornado import httpclient
 from tornado.httputil import url_concat
+from traitlets import Bool, Dict, Unicode, default
 from traitlets.config import LoggingConfigurable
-from traitlets import Dict, Unicode, default
 
-DEFAULT_DOCKER_REGISTRY_URL = "https://registry.hub.docker.com"
+DEFAULT_DOCKER_REGISTRY_URL = "https://registry-1.docker.io"
 DEFAULT_DOCKER_AUTH_URL = "https://index.docker.io/v1"
 
 
@@ -128,11 +130,10 @@ class DockerRegistry(LoggingConfigurable):
         url = urlparse(self.url)
         if ("." + url.hostname).endswith(".gcr.io"):
             return "https://{0}/v2/token?service={0}".format(url.hostname)
-        elif self.url.endswith(".docker.com"):
+        elif self.url.endswith(".docker.io"):
             return "https://auth.docker.io/token?service=registry.docker.io"
         else:
-            # is gcr.io's token url common? If so, it might be worth defaulting
-            # to https://registry.host/v2/token?service=registry.host
+            # If necessary we'll look for the WWW-Authenticate header
             return ""
 
     username = Unicode(
@@ -185,41 +186,262 @@ class DockerRegistry(LoggingConfigurable):
             base64.b64decode(b64_auth.encode("utf-8")).decode("utf-8").split(":", 1)[1]
         )
 
+    not_found_401 = Bool(
+        False,
+        config=True,
+        help="""
+        Set to True if your registry returns a 401 error when a repo doesn't exist
+        even with valid credentials.
+
+        Only has an effect when using token credentials.
+
+        Docker Hub has started to do this.
+        True by default when using Docker Hub, False otherwise.
+        """,
+    )
+
+    @default("not_found_401")
+    def _default_not_found_401(self):
+        # docker.io raises auth errors checking for missing repos
+        # instead of returning 404
+        return self.url.endswith(".docker.io")
+
+    def _parse_www_authenticate_header(self, header):
+        # Header takes the form
+        # WWW-Authenticate: Bearer realm="https://uk-london-1.ocir.io/12345678/docker/token",service="uk-london-1.ocir.io",scope=""
+        self.log.debug("Parsing WWW-Authenticate %r", header)
+
+        if not header.lower().startswith("bearer "):
+            raise ValueError(f"Only WWW-Authenticate Bearer type supported: {header}")
+        try:
+            realm = re.search(r'realm="([^"]+)"', header).group(1)
+            # Should service and scope parameters be optional instead of just empty?
+            service = re.search(r'service="([^"]*)"', header).group(1)
+            scope = re.search(r'scope="([^"]*)"', header).group(1)
+            return realm, service, scope
+        except AttributeError:
+            raise ValueError(
+                f"Expected WWW-Authenticate to include realm service scope: {header}"
+            ) from None
+
+    async def _get_token(self, client, token_url, service, scope):
+        auth_req = httpclient.HTTPRequest(
+            url_concat(
+                token_url,
+                {
+                    "scope": scope,
+                    "service": service,
+                },
+            ),
+            auth_username=self.username,
+            auth_password=self.password,
+        )
+        self.log.debug(
+            f"Getting registry token from {token_url} service={service} scope={scope}"
+        )
+        auth_resp = await client.fetch(auth_req)
+        response_body = json.loads(auth_resp.body.decode("utf-8", "replace"))
+
+        if "token" in response_body.keys():
+            token = response_body["token"]
+        elif "access_token" in response_body.keys():
+            token = response_body["access_token"]
+        else:
+            raise ValueError(f"No token in response from registry: {response_body}")
+        return token
+
+    async def _get_image_manifest_from_www_authenticate(
+        self, client, www_auth_header, url
+    ):
+        realm, service, scope = self._parse_www_authenticate_header(www_auth_header)
+        token = await self._get_token(client, realm, service, scope)
+        req = httpclient.HTTPRequest(
+            url,
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        self.log.debug(f"Getting image manifest from {url}")
+        try:
+            resp = await client.fetch(req)
+        except httpclient.HTTPError as e:
+            if e.code == 404:
+                return None
+            else:
+                raise
+        return json.loads(resp.body.decode("utf-8"))
+
     async def get_image_manifest(self, image, tag):
+        """
+        Get the manifest for an image.
+
+        image: The image name without the registry and tag
+        tag: The image tag
+        """
         client = httpclient.AsyncHTTPClient()
-        url = "{}/v2/{}/manifests/{}".format(self.url, image, tag)
+        url = f"{self.url}/v2/{image}/manifests/{tag}"
+        token = None
         # first, get a token to perform the manifest request
         if self.token_url:
-            auth_req = httpclient.HTTPRequest(
-                url_concat(self.token_url, {"scope": "repository:{}:pull".format(image)}),
-                auth_username=self.username,
-                auth_password=self.password,
+            token = await self._get_token(
+                client,
+                self.token_url,
+                scope=f"repository:{image}:pull",
+                service="container_registry",
             )
-            auth_resp = await client.fetch(auth_req)
-            response_body = json.loads(auth_resp.body.decode("utf-8", "replace"))
-
-            if "token" in response_body.keys():
-                token = response_body["token"]
-            elif "access_token" in response_body.keys():
-                token = response_body["access_token"]
-
-            req = httpclient.HTTPRequest(url,
-                headers={"Authorization": "Bearer {}".format(token)},
+            req = httpclient.HTTPRequest(
+                url,
+                headers={"Authorization": f"Bearer {token}"},
             )
         else:
             # Use basic HTTP auth (htpasswd)
-            req = httpclient.HTTPRequest(url,
+            req = httpclient.HTTPRequest(
+                url,
                 auth_username=self.username,
                 auth_password=self.password,
             )
 
+        self.log.debug(f"Getting image manifest from {url}")
         try:
             resp = await client.fetch(req)
         except httpclient.HTTPError as e:
             if e.code == 404:
                 # 404 means it doesn't exist
                 return None
+            elif e.code == 401 and token and self.not_found_401:
+                # token-authenticated requests may give 401 on nonexistent repos,
+                # e.g. on Docker Hub
+                # WARNING: this is hard to distinguish from a real permission error!
+                # but if we were issued a token, at least we know we have valid credentials,
+                # even if they are not permitted access to this repo
+                self.log.debug(
+                    "Interpreting 401 error as not found on %s:%s", image, tag
+                )
+                return None
+            elif (
+                e.code == 401 and not token and "www-authenticate" in e.response.headers
+            ):
+                # Unauthorised. If we don't have a token, try and get one using
+                # information from the WWW-Authenticate header
+                # https://stackoverflow.com/questions/56193110/how-can-i-use-docker-registry-http-api-v2-to-obtain-a-list-of-all-repositories-i/68654659#68654659
+                www_auth_header = e.response.headers["www-authenticate"]
+                return await self._get_image_manifest_from_www_authenticate(
+                    client, www_auth_header, url
+                )
             else:
                 raise
+        return json.loads(resp.body.decode("utf-8"))
+
+    async def get_credentials(self, image, tag):
+        """
+        If a dynamic token is required for pushing an image to the registry
+        return a dictionary of login credentials, otherwise return None
+        (caller should get credentials from some other source)
+        """
+        return None
+
+
+class FakeRegistry(DockerRegistry):
+    """
+    Fake registry that contains no images
+    """
+
+    async def get_image_manifest(self, image, tag):
+        return None
+
+
+class ExternalRegistryHelper(DockerRegistry):
+    """
+    A registry that uses a micro-service to check and create image
+    repositories.
+
+    Also handles creation of tokens for pushing to a registry if required.
+    """
+
+    service_url = Unicode(
+        "http://binderhub-container-registry-helper:8080",
+        allow_none=False,
+        help="The URL of the registry helper micro-service.",
+        config=True,
+    )
+
+    auth_token = Unicode(
+        os.getenv("BINDERHUB_CONTAINER_REGISTRY_HELPER_AUTH_TOKEN"),
+        help="The auth token to use when accessing the registry helper micro-service.",
+        config=True,
+    )
+
+    async def _request(self, endpoint, **kwargs):
+        client = httpclient.AsyncHTTPClient()
+        repo_url = f"{self.service_url}{endpoint}"
+        headers = {"Authorization": f"Bearer {self.auth_token}"}
+        repo = await client.fetch(repo_url, headers=headers, **kwargs)
+        return json.loads(repo.body.decode("utf-8"))
+
+    async def _get_image(self, image, tag):
+        repo_url = f"/image/{image}:{tag}"
+        self.log.debug(f"Checking whether image exists: {repo_url}")
+        try:
+            image_json = await self._request(repo_url)
+            return image_json
+        except httpclient.HTTPError as e:
+            if e.code == 404:
+                return None
+            raise
+
+    async def get_image_manifest(self, image, tag):
+        """
+        Checks whether the image exists in the registry.
+
+        If the container repository doesn't exist create the repository.
+
+        The container repository name may not be the same as the BinderHub image name.
+
+        E.g. Oracle Container Registry (OCIR) has the form:
+        OCIR_NAMESPACE/OCIR_REPOSITORY_NAME:TAG
+
+        These extra components are handled automatically by the registry helper
+        so BinderHub repository names such as OCIR_NAMESPACE/OCIR_REPOSITORY_NAME
+        can be used directly, it is not necessary to remove the extra components.
+
+        Returns the image manifest if the image exists, otherwise None
+        """
+
+        repo_url = f"/repo/{image}"
+        self.log.debug(f"Checking whether repository exists: {repo_url}")
+        try:
+            repo_json = await self._request(repo_url)
+        except httpclient.HTTPError as e:
+            if e.code == 404:
+                repo_json = None
+            else:
+                raise
+
+        if repo_json:
+            return await self._get_image(image, tag)
         else:
-            return json.loads(resp.body.decode("utf-8"))
+            self.log.debug(f"Creating repository: {repo_url}")
+            await self._request(repo_url, method="POST", body="")
+            return None
+
+    async def get_credentials(self, image, tag):
+        """
+        Get the registry credentials for the given image and tag if supported
+        by the remote helper, otherwise returns None
+
+        Returns a dictionary of login fields.
+        """
+        token_url = f"/token/{image}:{tag}"
+        self.log.debug(f"Getting registry token: {token_url}")
+        token_json = None
+        try:
+            token_json = await self._request(token_url, method="POST", body="")
+        except httpclient.HTTPError as e:
+            if e.code == 404:
+                return None
+            raise
+        self.log.debug(f"Token: {*token_json.keys(),}")
+        token = {
+            k: v
+            for (k, v) in token_json.items()
+            if k in ["username", "password", "registry"]
+        }
+        return token

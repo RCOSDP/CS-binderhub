@@ -1,24 +1,28 @@
 """
 Emit structured, discrete events when various actions happen.
 """
+
+import datetime
+import json
+import logging
+
+import jsonschema
+from jupyterhub.traitlets import Callable
+from pythonjsonlogger import jsonlogger
 from traitlets.config import Configurable
 
-import logging
-from datetime import datetime
-import jsonschema
-from pythonjsonlogger import jsonlogger
-from jupyterhub.traitlets import Callable
-import json
 
-
-def _skip_message(record, **kwargs):
+def _skip_fields(record, **kwargs):
     """
-    Remove 'message' from log record.
+    Remove unwanted fields from log record.
 
-    It is always emitted with 'null', and we do not want it,
-    since we are always emitting events only
+    message: always emitted with 'null', and we do not want it,
+      since we are always emitting events only
+    taskName:
     """
-    del record['message']
+    del record["message"]
+    if "taskName" in record:
+        del record["taskName"]
     return json.dumps(record, **kwargs)
 
 
@@ -26,6 +30,7 @@ class EventLog(Configurable):
     """
     Send structured events to a logging sink
     """
+
     handlers_maker = Callable(
         None,
         config=True,
@@ -34,7 +39,7 @@ class EventLog(Configurable):
         Callable that returns a list of logging.Handler instances to send events to.
 
         When set to None (the default), events are discarded.
-        """
+        """,
     )
 
     def __init__(self, *args, **kwargs):
@@ -47,7 +52,7 @@ class EventLog(Configurable):
 
         if self.handlers_maker:
             self.handlers = self.handlers_maker(self)
-            formatter = jsonlogger.JsonFormatter(json_serializer=_skip_message)
+            formatter = jsonlogger.JsonFormatter(json_serializer=_skip_fields)
             for handler in self.handlers:
                 handler.setFormatter(formatter)
                 self.log.addHandler(handler)
@@ -65,22 +70,20 @@ class EventLog(Configurable):
         jsonschema.validators.validator_for(schema).check_schema(schema)
 
         # Check that the properties we require are present
-        required_schema_fields = {'$id', 'version'}
+        required_schema_fields = {"$id", "version"}
         for rsf in required_schema_fields:
             if rsf not in schema:
-                raise ValueError(
-                    f'{rsf} is required in schema specification'
-                )
+                raise ValueError(f"{rsf} is required in schema specification")
 
         # Make sure reserved, auto-added fields are not in schema
-        reserved_fields = {'timestamp', 'schema', 'version'}
+        reserved_fields = {"timestamp", "schema", "version"}
         for rf in reserved_fields:
-            if rf in schema['properties']:
+            if rf in schema["properties"]:
                 raise ValueError(
-                    f'{rf} field is reserved by event emitter & can not be explicitly set in schema'
+                    f"{rf} field is reserved by event emitter & can not be explicitly set in schema"
                 )
 
-        self.schemas[(schema['$id'], schema['version'])] = schema
+        self.schemas[(schema["$id"], schema["version"])] = schema
 
     def emit(self, schema_name, version, event):
         """
@@ -91,14 +94,15 @@ class EventLog(Configurable):
             return
 
         if (schema_name, version) not in self.schemas:
-            raise ValueError(f'Schema {schema_name} version {version} not registered')
+            raise ValueError(f"Schema {schema_name} version {version} not registered")
         schema = self.schemas[(schema_name, version)]
         jsonschema.validate(event, schema)
 
+        now_utc = datetime.datetime.now(tz=datetime.timezone.utc)
         capsule = {
-            'timestamp': datetime.utcnow().isoformat() + 'Z',
-            'schema': schema_name,
-            'version': version
+            "timestamp": now_utc.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+            "schema": schema_name,
+            "version": version,
         }
         capsule.update(event)
         self.log.info(capsule)

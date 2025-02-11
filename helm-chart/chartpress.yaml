@@ -12,8 +12,6 @@ charts:
     resetTag: local
     resetVersion: 0.2.0
     images:
-      image-cleaner:
-        valuesPath: imageCleaner.image
       binderhub:
         # We will not use the default build contextPath, and must therefore
         # specify the dockerfilePath explicitly.
@@ -29,9 +27,15 @@ charts:
         # We manually specify the paths which chartpress should monitor for
         # changes that should trigger a rebuild of this image.
         paths:
-          - images/binderhub/requirements.txt
-          - ../setup.py
+          - images/binderhub
           - ../binderhub
+          - ../js
+          - ../babel.config.json
+          - ../MANIFEST.in
           - ../package.json
+          - ../pyproject.toml
+          - ../requirements.txt
+          - ../setup.cfg
+          - ../setup.py
           - ../webpack.config.js
         valuesPath: image
