@@ -313,7 +313,7 @@ You are assumed to have a modern version of [Python](https://www.python.org/),
 1. Let `helm` know about the official JupyterHub Helm chart repository.
 
    ```bash
-   helm repo add --force-update jupyterhub https://jupyterhub.github.io/helm-chart/
+   helm repo add --force-update jupyterhub https://rcosdp.github.io/CS-jhub-helm-chart/
    helm repo update
    ```
 
@@ -388,10 +388,10 @@ These are tasks that BinderHub maintainers perform.
 ### Bumping the JupyterHub Helm chart version
 
 The BinderHub Helm chart depends on the [JupyterHub Helm
-chart](https://jupyterhub.github.io/helm-chart/), and its version is pinned
+chart](https://rcosdp.github.io/CS-jhub-helm-chart/), and its version is pinned
 within `helm-chart/binderhub/Chart.yaml`. It is straightforward to update
 it with another version from the [JupyterHub Helm chart
-repository](https://jupyterhub.github.io/helm-chart/).
+repository](https://rcosdp.github.io/CS-jhub-helm-chart/).
 
 Use the [JupyterHub Helm chart's
 changelog](https://github.com/jupyterhub/zero-to-jupyterhub-k8s/blob/HEAD/CHANGELOG.md)

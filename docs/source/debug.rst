@@ -75,4 +75,4 @@ run an upgrade on your Kubernetes deployment like so::
 
      helm upgrade binder jupyterhub/binderhub --version=<commit-hash> -f secret.yaml -f config.yaml
 
-where ``<commit-hash>`` can be found `here <https://jupyterhub.github.io/helm-chart/#development-releases-binderhub>`_.
+where ``<commit-hash>`` can be found `here <https://rcosdp.github.io/CS-jhub-helm-chart/#development-releases-binderhub>`_.

@@ -341,13 +341,13 @@ This command will install the Helm chart released on 23 January 2025 as
 identified by the commit hash (the random string after `1.0.0-`), which is
 provided as a working example. You should provide the commit hash for the most
 recent release, which can be found
-`here <https://jupyterhub.github.io/helm-chart/#development-releases-binderhub>`__.
+`here <https://rcosdp.github.io/CS-jhub-helm-chart/#development-releases-binderhub>`__.
 
 .. note::
 
    * ``--version`` refers to the version of the BinderHub **Helm Chart**.
      Available versions can be found
-     `here <https://jupyterhub.github.io/helm-chart/#development-releases-binderhub>`__.
+     `here <https://rcosdp.github.io/CS-jhub-helm-chart/#development-releases-binderhub>`__.
    * ``name`` and ``namespace`` may be different, but we recommend using
      the same ``name`` and ``namespace`` to avoid confusion. We recommend
      something descriptive and short, such as ``binder``

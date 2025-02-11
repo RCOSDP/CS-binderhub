@@ -2,7 +2,7 @@
 
 [![Documentation Status](https://img.shields.io/readthedocs/binderhub?logo=read-the-docs)](https://binderhub.readthedocs.io/en/latest/)
 [![GitHub Workflow Status - Test](https://img.shields.io/github/actions/workflow/status/jupyterhub/binderhub/test.yml?logo=github&label=tests)](https://github.com/jupyterhub/binderhub/actions)
-[![Latest chart development release](https://img.shields.io/badge/dynamic/json.svg?label=latest&url=https://jupyterhub.github.io/helm-chart/info.json&query=$.binderhub.latest&colorB=orange)](https://jupyterhub.github.io/helm-chart/)
+[![Latest chart development release](https://img.shields.io/badge/dynamic/json.svg?label=latest&url=https://rcosdp.github.io/CS-jhub-helm-chart/info.json&query=$.binderhub.latest&colorB=orange)](https://rcosdp.github.io/CS-jhub-helm-chart/)
 [![GitHub](https://img.shields.io/badge/issue_tracking-github-blue.svg)](https://github.com/jupyterhub/binderhub/issues)
 [![Discourse](https://img.shields.io/badge/help_forum-discourse-blue.svg)](https://discourse.jupyter.org/c/binder/binderhub)
 [![Gitter](https://img.shields.io/badge/social_chat-gitter-blue.svg)](https://gitter.im/jupyterhub/binder)
