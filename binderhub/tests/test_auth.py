@@ -21,30 +21,45 @@ def use_session():
 
 
 @pytest.mark.parametrize(
-    'app,path,authenticated',
+    "app,path,authenticated",
     [
-        (True, '/', True),  # main page
-        (True, '/v2/gh/binderhub-ci-repos/requirements/d687a7f9e6946ab01ef2baa7bd6d5b73c6e904fd', True),
-        (True, '/metrics', False),
+        ("app_with_auth_config", "/", True),  # main page
+        (
+            True,
+            "/v2/gh/binderhub-ci-repos/requirements/d687a7f9e6946ab01ef2baa7bd6d5b73c6e904fd",
+            True,
+        ),
+        ("app_with_auth_config", "/metrics", False),
     ],
-    indirect=['app']  # send param True to app fixture, so that it loads authentication configuration
+    indirect=[
+        "app"
+    ],  # send param "app_with_auth_config" to app fixture, so that it loads authentication configuration
 )
 @pytest.mark.auth
 async def test_auth(app, path, authenticated, use_session):
-    url = f'{app.url}{path}'
+    url = f"{app.url}{path}"
     r = await async_requests.get(url)
     assert r.status_code == 200, f"{r.status_code} {url}"
     if not authenticated:
         # not authenticated, we should get the page and be done
         assert r.url == url
         return
+    assert "/hub/login" in urlparse(r.url).path
+
+    # acquire a _xsrf cookie to pass in the post request we are about to make
+    login_url = f"{app.hub_url}/hub/login"
+    r2 = await async_requests.get(login_url)
+    assert r2.status_code == 200, f"{r2.status_code} {r2.url}"
+    _xsrf_cookie = r2.cookies.get("_xsrf", path="/hub/")
+    assert _xsrf_cookie
 
     # submit login form
-    assert "/hub/login" in urlparse(r.url).path
-    r2 = await async_requests.post(r.url, data={'username': 'dummy', 'password': 'dummy'})
-    assert r2.status_code == 200, f"{r2.status_code} {r.url}"
+    r3 = await async_requests.post(
+        r.url, data={"username": "dummy", "password": "dummy", "_xsrf": _xsrf_cookie}
+    )
+    assert r3.status_code == 200, f"{r3.status_code} {r3.url}"
     # verify that we landed at the destination after auth
-    assert r2.url == url
+    assert r3.url == url
 
 
 @skip_remote
@@ -76,9 +91,14 @@ async def test_ban_networks(request, app, use_session, path, banned, prefixlen, 
         "255.255.255.255/32": "255.x",
         "1.0.0.0/8": "1.x",
     }
-    local_net = str(ipaddress.ip_network("127.0.0.1").supernet(new_prefix=prefixlen))
+    local_net = [
+        str(ipaddress.ip_network("127.0.0.1").supernet(new_prefix=prefixlen)),
+        str(ipaddress.ip_network("::1").supernet(new_prefix=prefixlen)),
+    ]
+
     if banned:
-        ban_networks[local_net] = "local"
+        for net in local_net:
+            ban_networks[net] = "local"
 
     # pass through trait validators on app
     app.ban_networks = ban_networks
@@ -91,7 +111,6 @@ async def test_ban_networks(request, app, use_session, path, banned, prefixlen, 
         app.tornado_app.settings,
         {
             "ban_networks": app.ban_networks,
-            "ban_networks_min_prefix_len": app.ban_networks_min_prefix_len,
         },
     ):
         r = await async_requests.get(url)

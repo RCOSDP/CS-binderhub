@@ -3,12 +3,6 @@
 
 set -x
 
-setup_helm() {
-    helm_version="${1}"
-    echo "setup helm ${helm_version}"
-    curl -sf https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | DESIRED_VERSION="${helm_version}" bash
-}
-
 await_jupyterhub() {
     kubectl rollout status --watch --timeout 300s deployment/proxy \
  && kubectl-argo-rollouts status --watch --timeout 300s hub \
@@ -20,6 +14,7 @@ await_jupyterhub() {
 }
 
 await_binderhub() {
+    # accepts the release name as a parameter
     await_jupyterhub
     kubectl-argo-rollouts status --watch --timeout 300s binder
 }

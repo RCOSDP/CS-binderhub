@@ -263,6 +263,8 @@ class ServiceListHandler(BaseHandler):
 
     @web.authenticated
     def get(self):
+        if not self.current_user or self.current_user == 'anonymous':
+            raise web.HTTPError(403, "Forbidden")
         self.set_header("Content-type", "application/json")
         self.write(json.dumps([
             {
