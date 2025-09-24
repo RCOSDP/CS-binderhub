@@ -27,6 +27,8 @@ from tornado.httputil import url_concat
 from traitlets import Bool, Dict, List, Set, Unicode, default
 from traitlets.config import LoggingConfigurable
 
+from repo2docker.contentproviders.rdm import RDM as Repo2dockerRDM
+
 from .utils import Cache
 from .repoauth import OAuth2Client
 
@@ -1257,14 +1259,19 @@ class RDMProvider(RepoProvider):
         super(RepoProvider, self).__init__(*args, **kwargs)
         if '/' not in self.spec:
             url = self.spec
-            ref = None
+            provided_ref = None
         else:
-            url, ref = self.spec.split('/', 1)
-        self.ref = str(uuid1()) if ref in {"", "HEAD", "master"} or ref == '' or ref is None else ref
+            url, provided_ref = self.spec.split('/', 1)
         self.repo = urllib.parse.unquote(url)
         self.hostname = urllib.parse.urlparse(self.repo).netloc.split(':')[0]
+        self._provided_ref = provided_ref
+        self.ref = None
+        self._resolved_ref_lock = None
+        self._access_token = None
 
     def get_optional_envs(self, access_token=None):
+        if access_token:
+            self.set_access_token(access_token)
         hosts = deepcopy(self.hosts)
         for host in hosts:
             if any([urllib.parse.urlparse(h).netloc.split(':')[0] == self.hostname
@@ -1295,10 +1302,66 @@ class RDMProvider(RepoProvider):
             if e.code in [401, 403]:
                 return False
             raise
+        self.set_access_token(access_token)
         return True
 
+    def set_access_token(self, access_token):
+        self._access_token = access_token
+
     async def get_resolved_ref(self):
-        return self.ref
+        if self.ref is not None:
+            return self.ref
+
+        if self._resolved_ref_lock is None:
+            self._resolved_ref_lock = asyncio.Lock()
+
+        async with self._resolved_ref_lock:
+            if self.ref is not None:
+                return self.ref
+
+            explicit_ref = self._explicit_ref()
+            if explicit_ref is not None:
+                self.ref = explicit_ref
+                return self.ref
+
+            hash_ref = await self._compute_content_hash()
+            if hash_ref:
+                self.ref = hash_ref
+            else:
+                self.ref = str(uuid1())
+            return self.ref
+
+    def _explicit_ref(self):
+        ref = self._provided_ref
+        if ref is None:
+            return None
+        if ref in {"", "HEAD", "master"}:
+            return None
+        return ref
+
+    async def _compute_content_hash(self):
+        provider = Repo2dockerRDM()
+        provider.hosts = self._hosts_for_repo2docker()
+
+        spec = await provider.detect_async(self.repo, ref=None)
+        if spec is None:
+            return None
+        return spec.get('uuid')
+
+    def _hosts_for_repo2docker(self):
+        hosts = deepcopy(self.hosts)
+        if not hosts:
+            return hosts
+        token = self._access_token
+        if not token:
+            return hosts
+        for host in hosts:
+            if any([
+                urllib.parse.urlparse(h).netloc.split(':')[0] == self.hostname
+                for h in host['hostname']
+            ]):
+                host['token'] = token
+        return hosts
 
     async def get_resolved_spec(self):
         return self.spec
