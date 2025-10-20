@@ -11,7 +11,6 @@
     "file-loader": "^1.1.6",
     "jquery": "^3.2.1",
     "style-loader": "^0.19.1",
-    "webpack": "^3.10.0",
     "xterm": "^2.9.2"
   },
   "scripts": {
@@ -27,5 +26,8 @@
   "bugs": {
     "url": "https://github.com/jupyterhub/binderhub/issues"
   },
-  "homepage": "https://github.com/jupyterhub/binderhub#readme"
+  "homepage": "https://github.com/jupyterhub/binderhub#readme",
+  "dependencies": {
+    "webpack": "^3.12.0"
+  }
 }

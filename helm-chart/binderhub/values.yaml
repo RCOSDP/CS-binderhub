@@ -16,7 +16,7 @@ nodeSelector: {}
 
 image:
   name: gcr.io/nii-ap-ops/k8s-binderhub-binderhub
-  tag: '0.2.0-jhub-1.1.3'
+  tag: '0.2.5-20240816'
 
 # registry here is only used to create docker config.json
 registry:
@@ -176,7 +176,7 @@ imageCleaner:
   enabled: true
   image:
     name: gcr.io/nii-ap-ops/k8s-binderhub-image-cleaner
-    tag: '0.2.0-jhub-1.1.3'
+    tag: '0.2.5-20240816'
     repository: gcr.io/nii-ap-ops/k8s-binderhub-image-cleaner
   # delete an image at most every 5 seconds
   delay: 5
