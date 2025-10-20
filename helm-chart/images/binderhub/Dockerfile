@@ -27,6 +27,9 @@ WORKDIR /tmp/binderhub
 RUN python setup.py bdist_wheel
 RUN pip wheel pycurl --wheel-dir ./dist
 
+# Run the script
+RUN mkdir -p /etc/pki/tls/certs/ && ln -s /etc/ssl/certs/ca-certificates.crt /etc/pki/tls/certs/ca-bundle.crt
+
 
 # The final stage
 # ---------------
@@ -49,6 +52,8 @@ RUN apt-get update \
         git build-essential \
  && rm -rf /var/lib/apt/lists/*
 
+# Run the script
+RUN mkdir -p /etc/pki/tls/certs/ && ln -s /etc/ssl/certs/ca-certificates.crt /etc/pki/tls/certs/ca-bundle.crt
 
 # Copy the built wheels from the build-stage. Also copy the image
 # requirements.txt built from the binderhub package requirements.txt and the
