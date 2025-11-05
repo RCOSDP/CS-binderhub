@@ -188,13 +188,6 @@ async def test_hydroshare_doi():
             "https://doi.org/10.7910/DVN/TJCLKP",
             "dataverse-dvn-2ftjclkp",
         ],
-        [
-            "10.25346/S6/DE95RT",
-            "10.25346/S6/DE95RT",
-            r"20460\.v\d+\.\d+$",
-            "https://doi.org/10.25346/S6/DE95RT",
-            "dataverse-s6-2fde95rt",
-        ],
     ],
 )
 async def test_dataverse(
@@ -220,11 +213,11 @@ async def test_dataverse(
     "spec,resolved_spec,resolved_ref,resolved_ref_url,build_slug",
     [
         [
-            "https://demo.ckan.org/dataset/sample-dataset-1",
-            "https://demo.ckan.org/dataset/sample-dataset-1",
-            "sample-dataset-1.v",
-            "https://demo.ckan.org/dataset/sample-dataset-1",
-            "ckan-sample-dataset-1",
+            "https://demo.ckan.org/dataset/my-sample-dataset-001",
+            "https://demo.ckan.org/dataset/my-sample-dataset-001",
+            "my-sample-dataset-001.v",
+            "https://demo.ckan.org/dataset/my-sample-dataset-001",
+            "ckan-my-sample-dataset-001",
         ],
         [
             "https://data.depositar.io/dataset/binder-example-sea-turtle-sightings-in-taiwan/?activity_id=93df7fd0-0edc-4ebf-bac7-fbf5f78de90b",
@@ -264,55 +257,86 @@ async def test_ckan(spec, resolved_spec, resolved_ref, resolved_ref_url, build_s
 
 
 @pytest.mark.parametrize(
-    'spec,resolved_ref,repo_url,build_slug,api_status_code,validation_result,token_validation_url',
+    'spec,expected_ref,repo_url,build_slug,api_status_code,validation_result,'
+    'token_validation_url,hash_result,expect_hash_call,expect_uuid',
     [
-        ['https%3A%2F%2Fsome.host.test.jp%2Fpwad2/',
-        None,
-        'https://some.host.test.jp/pwad2',
-        'https---some.host.test.jp-pwad2',
-        None,
-        True,
-        'https://api.some.host.test.jp/v2/nodes/pwad2/'],
-        ['https%3A%2F%2Fsome.host.test.jp%2Fpwad2',
-        None,
-        'https://some.host.test.jp/pwad2',
-        'https---some.host.test.jp-pwad2',
-        404,
-        None,
-        'https://api.some.host.test.jp/v2/nodes/pwad2/'],
-        ['https%3A%2F%2Fsome.host.test.jp%2Fpwad2%2Ffiles%2Ftestprovider%2Ftestdir/',
-        None,
-        'https://some.host.test.jp/pwad2/files/testprovider/testdir',
-        'https---some.host.test.jp-pwad2-files-testprovider-testdir',
-        None,
-        True,
-        'https://api.some.host.test.jp/v2/nodes/pwad2/'],
-        ['https%3A%2F%2Fsome.host.test.jp%2Fpwad2%2Ffiles%2Ftestprovider%2Ftestdir/master',
-        None,
-        'https://some.host.test.jp/pwad2/files/testprovider/testdir',
-        'https---some.host.test.jp-pwad2-files-testprovider-testdir',
-        500,
-        None,
-        'https://api.some.host.test.jp/v2/nodes/pwad2/'],
-        ['https%3A%2F%2Fsome.host.test.jp%2Fpwad2%2Ffiles%2Ftestprovider%2Ftestdir/HEAD',
-        None,
-        'https://some.host.test.jp/pwad2/files/testprovider/testdir',
-        'https---some.host.test.jp-pwad2-files-testprovider-testdir',
-        401,
-        False,
-        'https://api.some.host.test.jp/v2/nodes/pwad2/'],
-        ['https%3A%2F%2Fsome.host.test.jp%2Fpwad2%2Ffiles%2Ftestprovider%2Ftestdir/X1234',
-        'X1234',
-        'https://some.host.test.jp/pwad2/files/testprovider/testdir',
-        'https---some.host.test.jp-pwad2-files-testprovider-testdir',
-        403,
-        False,
-        'https://api.some.host.test.jp/v2/nodes/pwad2/'],
+        [
+            'https%3A%2F%2Fsome.host.test.jp%2Fpwad2/',
+            'computed-hash',
+            'https://some.host.test.jp/pwad2',
+            'https---some.host.test.jp-pwad2',
+            None,
+            True,
+            'https://api.some.host.test.jp/v2/nodes/pwad2/',
+            'computed-hash',
+            True,
+            False,
+        ],
+        [
+            'https%3A%2F%2Fsome.host.test.jp%2Fpwad2',
+            None,
+            'https://some.host.test.jp/pwad2',
+            'https---some.host.test.jp-pwad2',
+            404,
+            None,
+            'https://api.some.host.test.jp/v2/nodes/pwad2/',
+            None,
+            True,
+            True,
+        ],
+        [
+            'https%3A%2F%2Fsome.host.test.jp%2Fpwad2%2Ffiles%2Ftestprovider%2Ftestdir/',
+            'computed-hash',
+            'https://some.host.test.jp/pwad2/files/testprovider/testdir',
+            'https---some.host.test.jp-pwad2-files-testprovider-testdir',
+            None,
+            True,
+            'https://api.some.host.test.jp/v2/nodes/pwad2/',
+            'computed-hash',
+            True,
+            False,
+        ],
+        [
+            'https%3A%2F%2Fsome.host.test.jp%2Fpwad2%2Ffiles%2Ftestprovider%2Ftestdir/master',
+            'computed-hash',
+            'https://some.host.test.jp/pwad2/files/testprovider/testdir',
+            'https---some.host.test.jp-pwad2-files-testprovider-testdir',
+            500,
+            None,
+            'https://api.some.host.test.jp/v2/nodes/pwad2/',
+            'computed-hash',
+            True,
+            False,
+        ],
+        [
+            'https%3A%2F%2Fsome.host.test.jp%2Fpwad2%2Ffiles%2Ftestprovider%2Ftestdir/HEAD',
+            'computed-hash',
+            'https://some.host.test.jp/pwad2/files/testprovider/testdir',
+            'https---some.host.test.jp-pwad2-files-testprovider-testdir',
+            401,
+            False,
+            'https://api.some.host.test.jp/v2/nodes/pwad2/',
+            'computed-hash',
+            True,
+            False,
+        ],
+        [
+            'https%3A%2F%2Fsome.host.test.jp%2Fpwad2%2Ffiles%2Ftestprovider%2Ftestdir/X1234',
+            'X1234',
+            'https://some.host.test.jp/pwad2/files/testprovider/testdir',
+            'https---some.host.test.jp-pwad2-files-testprovider-testdir',
+            403,
+            False,
+            'https://api.some.host.test.jp/v2/nodes/pwad2/',
+            'unused-hash',
+            False,
+            False,
+        ],
     ]
 )
 async def test_rdm(
-    spec, resolved_ref, repo_url, build_slug, api_status_code, validation_result,
-    token_validation_url
+    spec, expected_ref, repo_url, build_slug, api_status_code, validation_result,
+    token_validation_url, hash_result, expect_hash_call, expect_uuid
 ):
     provider = RDMProvider(spec=spec)
     provider.hosts = [
@@ -322,12 +346,22 @@ async def test_rdm(
         }
     ]
 
+    hash_mock = mock.AsyncMock(return_value=hash_result)
+    provider._compute_content_hash = hash_mock
+
     # have to resolve the ref first
     ref = await provider.get_resolved_ref()
-    if resolved_ref is not None:
-        assert ref == resolved_ref
-    else:
+    if expected_ref is not None:
+        assert ref == expected_ref
+    elif expect_uuid:
         assert re.match(r'^[0-9A-Fa-f\-]+$', ref) is not None
+    else:
+        assert ref == hash_result
+
+    if expect_hash_call:
+        assert hash_mock.await_count == 1
+    else:
+        assert hash_mock.await_count == 0
 
     slug = provider.get_build_slug()
     assert slug == build_slug

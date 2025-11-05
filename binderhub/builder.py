@@ -341,6 +341,9 @@ class BuildHandler(BaseHandler):
         else:
             self.repo_token = None
 
+        if self.repo_token and hasattr(provider, "set_access_token"):
+            provider.set_access_token(self.repo_token)
+
         repo_url = self.repo_url = provider.get_repo_url()
 
         # labels to apply to build/launch metrics
