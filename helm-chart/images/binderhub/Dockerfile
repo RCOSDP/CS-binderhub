@@ -68,6 +68,22 @@ RUN apt-get update \
               # or "kubectl delete pod" is run. By doing that the pod can
               # terminate very quickly.
         curl gpg \
+        # OpenSSL コンパイル用
+        build-essential \
+        wget \
+        zlib1g-dev \
+        ca-certificates \
+ && wget -O /tmp/ssl-source.tar.gz https://www.openssl.org/source/openssl-3.0.18.tar.gz \
+ && tar -xzf /tmp/ssl-source.tar.gz -C /tmp \
+ && (cd /tmp/openssl-3.0.18 && ./Configure --prefix=/usr/local --openssldir=/etc/ssl --libdir=lib shared zlib-dynamic) \
+ && (cd /tmp/openssl-3.0.18 && make -j$(nproc)) \
+ && (cd /tmp/openssl-3.0.18 && make install_sw) \
+ && echo "/usr/local/lib" > /etc/ld.so.conf.d/openssl-3.0.18.conf \      
+ && ldconfig \
+ && rm -f /tmp/ssl-source.tar.gz \
+ && rm -rf /tmp/openssl-3.0.18 \
+ && apt-get remove -y build-essential wget zlib1g-dev \
+ && apt-get autoremove -y \
  && rm -rf /var/lib/apt/lists/*
 
 # Workaround: CS-jupyterhub requires nodejs and npm to be installed.
