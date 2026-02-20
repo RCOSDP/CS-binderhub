@@ -1,11 +1,17 @@
-beautifulsoup4
-chartpress==1.0.*
+beautifulsoup4[html5lib]
+build
+chartpress>=2.1
 click
-codecov
-html5lib
-jupyterhub
+dockerspawner
+jsonschema
+jupyter-repo2docker @ git+https://github.com/RCOSDP/CS-repo2docker.git@2025.10.0
+jupyter_packaging>=0.10.4,<2
+jupyterhub @ git+https://github.com/RCOSDP/CS-jupyterhub.git@5.2.1
+nest-asyncio
 pytest
-pytest-asyncio
+pytest-asyncio<=0.25.0
 pytest-cov
+pytest-timeout
+pytest_playwright
 requests
-ruamel.yaml>=0.15
+ruamel.yaml>=0.17.30

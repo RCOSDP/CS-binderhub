@@ -1,9 +1,6 @@
 # A JupyterHub Helm chart config containing only auth relevant config, and is
 # meant to be used alongside another configuration.
 
-custom:
-  binderauth_enabled: true
-
 hub:
   services:
     binder:
@@ -18,3 +15,10 @@ hub:
           scopes: [ 'self', 'access:services' ]
     DummyAuthenticator:
       password: "dummy"
+    BinderSpawner:
+      auth_enabled: true
+  loadRoles:
+    user:
+      scopes:
+        - self
+        - "access:services!service=binder"

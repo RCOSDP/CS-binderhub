@@ -1,84 +1,114 @@
-# We use a build stage to package binderhub and pycurl into a wheel which we
-# then install by itself in the final image which is relatively slimmed.
-ARG DIST=buster
+# syntax = docker/dockerfile:1.3
 
 
 # The build stage
 # ---------------
-FROM python:3.8-$DIST as build-stage
-# ARG DIST is defined again to be made available in this build stage's scope.
-# ref: https://docs.docker.com/engine/reference/builder/#understand-how-arg-and-from-interact
-ARG DIST
+# This stage is building Python wheels for use in later stages by using a base
+# image that has more pre-requisites to do so, such as a C++ compiler.
+#
+# NOTE: If the image version is updated, also update it in ci/refreeze!
+#
+FROM python:3.13-bookworm as build-stage
 
-# Install node as required to package binderhub to a wheel
-RUN echo "deb http://deb.nodesource.com/node_14.x $DIST main" > /etc/apt/sources.list.d/nodesource.list \
- && curl -s https://deb.nodesource.com/gpgkey/nodesource.gpg.key | apt-key add -
+# Workaround: CS-jupyterhub requires nodejs and npm to be installed.
 RUN apt-get update \
- && apt-get install --yes \
-        nodejs \
+ && apt-get upgrade --yes \
+ && apt-get install --yes curl gpg \
  && rm -rf /var/lib/apt/lists/*
+RUN mkdir -p -m 0755 /etc/apt/keyrings
+RUN apt-get update
+RUN curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
+RUN chmod a+r /etc/apt/keyrings/nodesource.gpg
+ENV NODE_MAJOR=21
+RUN echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_MAJOR.x nodistro main" | \
+    tee /etc/apt/sources.list.d/nodesource.list
+RUN apt update
+RUN apt install -y nodejs
+RUN npm install --global yarn
 
-# Copy the whole git repository to /tmp/binderhub
-COPY . /tmp/binderhub
-WORKDIR /tmp/binderhub
-
-# Build the binderhub python library into a wheel and save it to the ./dist
-# folder. There are no pycurl wheels so we build our own in the build stage.
-RUN python setup.py bdist_wheel
-RUN pip wheel pycurl --wheel-dir ./dist
-
-# Run the script
-RUN mkdir -p /etc/pki/tls/certs/ && ln -s /etc/ssl/certs/ca-certificates.crt /etc/pki/tls/certs/ca-bundle.crt
+# Build wheels
+#
+# We set pip's cache directory and expose it across build stages via an
+# ephemeral docker cache (--mount=type=cache,target=${PIP_CACHE_DIR}). We use
+# the same technique for the directory /tmp/wheels.
+#
+# assumes `python3 -m build .` has been run to create the wheel
+# in the top-level dist directory
+COPY helm-chart/images/binderhub/requirements.txt ./
+COPY dist .
+ARG PIP_CACHE_DIR=/tmp/pip-cache
+RUN --mount=type=cache,target=${PIP_CACHE_DIR} \
+    pip wheel --wheel-dir=/tmp/wheels \
+        # pycurl wheels for 7.45.3 have problems finding CAs
+        # https://github.com/pycurl/pycurl/issues/834
+        --no-binary pycurl \
+        -r ./requirements.txt \
+        ./binderhub*.whl
 
 
 # The final stage
 # ---------------
-FROM python:3.8-$DIST
-WORKDIR /
+# This stage is built and published as quay.io/jupyterhub/k8s-binderhub.
+#
+FROM python:3.13-slim-bookworm
 
-ARG DIST
+ENV PYTHONUNBUFFERED=1
+ENV DEBIAN_FRONTEND=noninteractive
 
-# Install node as required to package binderhub to a wheel
-RUN echo "deb http://deb.nodesource.com/node_14.x $DIST main" > /etc/apt/sources.list.d/nodesource.list \
- && curl -s https://deb.nodesource.com/gpgkey/nodesource.gpg.key | apt-key add -
 RUN apt-get update \
+ && apt-get upgrade --yes \
  && apt-get install --yes \
-        nodejs \
+        git \
+              # required by binderhub
+        libcurl4 \
+              # required by pycurl
+        tini \
+              # tini is used as an entrypoint to not loose track of SIGTERM
+              # signals as sent before SIGKILL, for example when "docker stop"
+              # or "kubectl delete pod" is run. By doing that the pod can
+              # terminate very quickly.
+        curl gpg \
+        # OpenSSL コンパイル用
+        build-essential \
+        wget \
+        zlib1g-dev \
+        ca-certificates \
+ && wget -O /tmp/ssl-source.tar.gz https://www.openssl.org/source/openssl-3.0.18.tar.gz \
+ && tar -xzf /tmp/ssl-source.tar.gz -C /tmp \
+ && (cd /tmp/openssl-3.0.18 && ./Configure --prefix=/usr/local --openssldir=/etc/ssl --libdir=lib shared zlib-dynamic) \
+ && (cd /tmp/openssl-3.0.18 && make -j$(nproc)) \
+ && (cd /tmp/openssl-3.0.18 && make install_sw) \
+ && echo "/usr/local/lib" > /etc/ld.so.conf.d/openssl-3.0.18.conf \      
+ && ldconfig \
+ && rm -f /tmp/ssl-source.tar.gz \
+ && rm -rf /tmp/openssl-3.0.18 \
+ && apt-get remove -y build-essential wget zlib1g-dev \
+ && apt-get autoremove -y \
  && rm -rf /var/lib/apt/lists/*
 
-# The slim version doesn't include git as required by binderhub
-RUN apt-get update \
- && apt-get install --yes \
-        git build-essential \
- && rm -rf /var/lib/apt/lists/*
-
-# Run the script
-RUN mkdir -p /etc/pki/tls/certs/ && ln -s /etc/ssl/certs/ca-certificates.crt /etc/pki/tls/certs/ca-bundle.crt
-
-# Copy the built wheels from the build-stage. Also copy the image
-# requirements.txt built from the binderhub package requirements.txt and the
-# requirements.in file using the ./dependency script.
-COPY --from=build-stage /tmp/binderhub/dist/*.whl pre-built-wheels/
-COPY helm-chart/images/binderhub/requirements.txt .
-
-RUN pip install --no-cache-dir cliapp
-RUN curl -sL https://deb.nodesource.com/setup_14.x | bash 
-RUN apt install -y --no-install-recommends nodejs && \
-    rm -rf /var/lib/apt/lists/*
+# Workaround: CS-jupyterhub requires nodejs and npm to be installed.
+RUN mkdir -p -m 0755 /etc/apt/keyrings
+RUN apt-get update
+RUN curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
+RUN chmod a+r /etc/apt/keyrings/nodesource.gpg
+ENV NODE_MAJOR=21
+RUN echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_MAJOR.x nodistro main" | \
+    tee /etc/apt/sources.list.d/nodesource.list
+RUN apt update
+RUN apt install -y nodejs
 RUN npm install --global yarn
 
-# Install pre-built wheels and the generated requirements.txt for the image.
-RUN pip install --no-cache-dir \
-        pre-built-wheels/*.whl \
-        -r requirements.txt
+# install wheels built in the build stage
+COPY helm-chart/images/binderhub/requirements.txt /tmp/requirements.txt
+ARG PIP_CACHE_DIR=/tmp/pip-cache
+RUN --mount=type=cache,target=${PIP_CACHE_DIR} \
+    --mount=type=cache,from=build-stage,source=/tmp/wheels,target=/tmp/wheels \
+    pip install --no-deps /tmp/wheels/* \
+    # validate pip install since it's not resolving dependencies
+ && pip check \
+    # verify success of previous step
+ && python -c "import pycurl, binderhub.app"
 
-# When using the ./dependency script to output a frozen environment, we do it
-# from within this container. So below we conditionally install pip-tools for
-# use by the ./dependency script.
-ARG PIP_TOOLS=
-RUN test -z "$PIP_TOOLS" || pip install --no-cache pip-tools==$PIP_TOOLS
-
-ENTRYPOINT ["python3", "-m", "binderhub"]
-CMD ["--config", "/etc/binderhub/config/binderhub_config.py"]
-ENV PYTHONUNBUFFERED=1
 EXPOSE 8585
+ENTRYPOINT ["tini", "--", "python", "-m", "binderhub"]
+CMD ["--config", "/etc/binderhub/config/binderhub_config.py"]

@@ -59,5 +59,4 @@ async def test_oauth_flow(app, use_session):
 async def test_api_not_authenticated(app, path, use_session):
     url = f'{app.url}{path}'
     r = await async_requests.get(url, allow_redirects=False)
-    assert r.status_code == 302, f"{r.status_code} {url}"
-    assert re.match(r'^http:\/\/[a-z0-9\.]+:30902\/hub\/api\/oauth2\/authorize\?.*', r.headers['Location']), r.headers['Location']
+    assert r.status_code == 403, f"{r.status_code} {url}"

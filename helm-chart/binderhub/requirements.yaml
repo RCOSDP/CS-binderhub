@@ -1,5 +1,0 @@
-dependencies:
-  # https://github.com/jupyterhub/zero-to-jupyterhub-k8s/tags
-  - name: jupyterhub
-    version: "3.2.1-20240401"
-    repository: "https://rcosdp.github.io/CS-jhub-helm-chart/"
