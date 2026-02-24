@@ -12,7 +12,7 @@ google-cloud-logging==3.*
 jupyterhub @ git+https://github.com/RCOSDP/CS-jupyterhub.git@5.2.1
 
 # jupyter-repo2docker is pinned to CS-repo2docker
-jupyter-repo2docker @ git+https://github.com/RCOSDP/CS-repo2docker.git@2025.10.0
+jupyter-repo2docker @ git+https://github.com/RCOSDP/CS-repo2docker.git@2026.02.0
 
 # Workaround: Added a dependecy of ruamel-yaml because jupyter-telemetry,
 # which has a dependency of ruamel-yaml, was removed from jupyterhub.

@@ -4,7 +4,7 @@ chartpress>=2.1
 click
 dockerspawner
 jsonschema
-jupyter-repo2docker @ git+https://github.com/RCOSDP/CS-repo2docker.git@2025.10.0
+jupyter-repo2docker @ git+https://github.com/RCOSDP/CS-repo2docker.git@2026.02.0
 jupyter_packaging>=0.10.4,<2
 jupyterhub @ git+https://github.com/RCOSDP/CS-jupyterhub.git@5.2.1
 nest-asyncio
