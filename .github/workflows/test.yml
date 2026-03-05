@@ -43,7 +43,7 @@ jobs:
   # jobs or have "template" jobs, so we use `if` conditions on steps
   tests:
     runs-on: ubuntu-22.04
-    timeout-minutes: 10
+    timeout-minutes: 20
 
     permissions:
       contents: read

@@ -342,6 +342,10 @@ export function LinkGenerator({
           </div>
         </div>
       </div>
+      <div style={{ textAlign: "right" }}>
+          →<a href="https://jdcat.jsps.go.jp/analysis-In-case-of-error.html" target="_blank" rel="noopener noreferrer">問い合わせ先/エラーが発生したときは</a><br/>
+          →<a href="https://jdcat.jsps.go.jp/analysis-In-case-of-error.html" target="_blank" rel="noopener noreferrer">Contact Information/Troubleshooting</a>
+      </div>
     </form>
   );
 }
