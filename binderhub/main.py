@@ -23,17 +23,32 @@ class UIHandler(BaseHandler):
         return super().initialize()
 
     @authenticated
-    def get(self):
+    async def get(self):
         repoproviders_display_config = [
             repo_provider_class.display_config
             for repo_provider_class in self.settings["repo_providers"].values()
         ]
+        running_environment_count = None
+        launcher = self.settings.get("launcher")
+        if launcher is not None:
+            try:
+                user = self.get_current_user()
+                username = user.get("name") if isinstance(user, dict) else user
+                if username:
+                    running_environment_count = await launcher.get_named_server_count(
+                        username
+                    )
+            except Exception:
+                self.log.debug(
+                    "Unable to determine current environment count", exc_info=True
+                )
         self.page_config |= {
             "baseUrl": self.settings["base_url"],
             "badgeBaseUrl": self.get_badge_base_url(),
             "logoUrl": self.static_url("logo.svg"),
             "logoWidth": "320px",
             "repoProviders": repoproviders_display_config,
+            "runningEnvironmentCount": running_environment_count,
             "aboutMessage": self.settings["about_message"],
             "bannerHtml": self.settings["banner_message"],
             "binderVersion": binder_version,
@@ -58,7 +73,7 @@ class RepoLaunchUIHandler(UIHandler):
         return super().initialize()
 
     @authenticated
-    def get(self, provider_id, _escaped_spec):
+    async def get(self, provider_id, _escaped_spec):
         prefix = "/v2/" + provider_id
         spec = self.get_spec_from_request(prefix)
 
@@ -75,7 +90,7 @@ class RepoLaunchUIHandler(UIHandler):
         self.opengraph_title = (
             f"{self.repo_provider.display_config['displayName']}: {spec}"
         )
-        return super().get()
+        return await super().get()
 
 
 class LegacyRedirectHandler(BaseHandler):

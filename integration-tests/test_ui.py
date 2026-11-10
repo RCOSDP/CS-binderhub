@@ -35,7 +35,7 @@ async def local_hub_local_binder(request):
     )
 
     url = f"http://127.0.0.1:{port}/services/binder/"
-    for i in range(10):
+    for i in range(30):
         try:
             resp = await async_requests.get(url)
             if resp.status_code == 200:

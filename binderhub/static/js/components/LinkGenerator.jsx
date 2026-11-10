@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import copy from "copy-to-clipboard";
+import { PAGE_CONFIG } from "../App.jsx";
 
 /**
  * @typedef {object} ProviderSelectorProps
@@ -346,6 +347,17 @@ export function LinkGenerator({
           →<a href="https://jdcat.jsps.go.jp/analysis-In-case-of-error.html" target="_blank" rel="noopener noreferrer">問い合わせ先/エラーが発生したときは</a><br/>
           →<a href="https://jdcat.jsps.go.jp/analysis-In-case-of-error.html" target="_blank" rel="noopener noreferrer">Contact Information/Troubleshooting</a>
       </div>
+      {PAGE_CONFIG.runningEnvironmentCount !== undefined &&
+        PAGE_CONFIG.runningEnvironmentCount !== null && (
+        <div style={{ textAlign: "right" }}>
+          <a href="https://jupyter.cs.rcos.nii.ac.jp/" target="_blank" rel="noreferrer" className="fw-semibold">
+            あなたは {PAGE_CONFIG.runningEnvironmentCount}個の解析環境を持っています
+          </a>
+          {PAGE_CONFIG.runningEnvironmentCount >= 10 && (
+            <><br /><span style={{ color: "red" }}>解析環境の数が上限に達しています</span></>
+          )}
+        </div>
+      )}
     </form>
   );
 }
